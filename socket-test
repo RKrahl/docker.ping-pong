@@ -1,0 +1,70 @@
+#! /usr/bin/python3
+"""Simple test program that listens on a network socket.
+"""
+
+import argparse
+import logging
+import re
+import os
+import socket
+import time
+
+log_fmt = "%(asctime)s %(levelname)s: %(message)s"
+logging.basicConfig(level=logging.DEBUG, format=log_fmt)
+log = logging.getLogger(__name__)
+
+def server(host='', port=2222):
+    server_addr = (host, port)
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(server_addr)
+        s.listen()
+        log.info("Listening for incoming connections at %s", server_addr)
+        while True:
+            conn, client_addr = s.accept()
+            with conn:
+                log.info('Got connection from: %s', client_addr)
+                while True:
+                    data = conn.recv(1024).decode().strip()
+                    if not data:
+                        break
+                    log.info("Received: %s", data)
+                    if data == "ping":
+                        conn.sendall("200: pong\n".encode())
+                    else:
+                        conn.sendall(("400: %s is invalid\n" % data).encode())
+                log.info('Connection from %s closed', client_addr)
+
+def client(host, port=2222):
+    server = (host, port)
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.connect(server)
+        s.sendall(b'ping\n')
+        log.info("Sent ping to %s", server)
+        reply = s.recv(1024).decode().strip()
+        log.info("Got reply: %s", reply)
+        m = re.match(r'^(\d+):\s*(.*)', reply)
+        if not m:
+            log.error("Invalid reply")
+        elif int(m.group(1)) != 200:
+            log.error("Error reply: %s", m.group(2))
+
+if __name__ == '__main__':
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument('--role', choices=('server', 'client'),
+                            default=os.environ.get('PINGPONG_ROLE', 'server'),
+                            help="which side are we on?")
+    arg_parser.add_argument('--host',
+                            default=os.environ.get('PINGPONG_HOST', ''),
+                            help="server host address")
+    arg_parser.add_argument('--port', type=int,
+                            default=os.environ.get('PINGPONG_PORT', 2222),
+                            help="port number")
+    conf = arg_parser.parse_args()
+    if conf.role == 'server':
+        server(conf.host, conf.port)
+    else:
+        if not conf.host:
+            raise ValueError("Must specify host for client role")
+        # Give the server some head start to get up
+        time.sleep(5)
+        client(conf.host, conf.port)
