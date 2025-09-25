@@ -1,5 +1,11 @@
 #! /usr/bin/python3
-"""Simple test program that listens on a network socket.
+"""Simple program to test a TCP network link.
+
+The script can act either as a server listening on a network interface
+or as a client client connecting to the server.  If you start such a
+pair of instances, a simple text message will be exchanged.  The
+client will terminate after the exchange, the server remains running,
+waiting for more clients to connect.
 """
 
 import argparse
